@@ -1,74 +1,290 @@
-<!DOCTYPE html><html lang="bn">
+<!DOCTYPE html>
+<html lang="bn">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Link Station Admin</title>
+
 <style>
-body{font-family:Arial;background:#10172a;color:white;padding:20px}
-main{max-width:420px;margin:auto}
-input,button{box-sizing:border-box;width:100%;padding:13px;margin:8px 0;border:0;border-radius:8px}
-button{background:#477bff;color:white;font-weight:bold}
-.box{background:#1c2740;padding:18px;border-radius:12px}
+*{box-sizing:border-box}
+body{
+  font-family:Arial,sans-serif;
+  background:#10172a;
+  color:white;
+  padding:20px;
+  margin:0;
+}
+main{max-width:480px;margin:20px auto}
+.box{
+  background:#1c2740;
+  padding:20px;
+  border-radius:12px;
+  margin-bottom:15px;
+}
+input,button{
+  width:100%;
+  padding:13px;
+  margin:8px 0;
+  border:0;
+  border-radius:8px;
+  font-size:16px;
+}
+button{
+  background:#477bff;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+.delete{background:#e53935}
+.edit{background:#159c75}
+.row{
+  background:#10172a;
+  padding:12px;
+  border-radius:8px;
+  margin:12px 0;
+  overflow-wrap:anywhere;
+}
+a{color:#9fc0ff}
+#msg{overflow-wrap:anywhere}
+[hidden]{display:none!important}
 </style>
 </head>
+
 <body>
 <main>
+
 <div class="box" id="login">
-<h2>🔐 Admin Login</h2>
-<input id="password" type="password" placeholder="Admin Password">
-<button onclick="login()">Login</button>
-<p id="msg"></p>
+  <h2>🔐 Link Station Admin</h2>
+  <input id="email" type="email" placeholder="Admin Email">
+  <input id="password" type="password" placeholder="Admin Password">
+  <button id="loginBtn">Login</button>
+  <p id="msg">আপনার Admin অ্যাকাউন্ট দিয়ে লগইন করুন।</p>
 </div>
+
 <div class="box" id="panel" hidden>
-<h2>My Link Station Admin</h2>
-<input id="name" placeholder="লিংকের নাম">
-<input id="url" placeholder="https://example.com">
-<button onclick="addLink()">লিংক যোগ করুন</button>
-<div id="links"></div>
-<button onclick="logout()">Logout</button>
+  <h2>My Link Station Admin</h2>
+
+  <input id="name" placeholder="লিংকের নাম">
+  <input id="url" type="url" placeholder="https://example.com">
+
+  <button id="saveBtn">লিংক যোগ করুন</button>
+  <button id="cancelBtn" hidden>সম্পাদনা বাতিল</button>
+
+  <p id="status"></p>
+  <div id="links"></div>
+
+  <button id="logoutBtn">Logout</button>
 </div>
+
 </main>
-<script>
-const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";
-let links=[];
-function login(){
-if(document.getElementById('password').value===ADMIN_PASSWORD){
-document.getElementById('login').hidden=true;
-document.getElementById('panel').hidden=false;
-}else{
-document.getElementById('msg').textContent='পাসওয়ার্ড সঠিক নয়।';
+
+<script type="module">
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCBkD2dcmLX-rwu5tvO8Nj1umWNLyvcbuU",
+  authDomain: "my-link-station.firebaseapp.com",
+  projectId: "my-link-station",
+  storageBucket: "my-link-station.firebasestorage.app",
+  messagingSenderId: "265210489111",
+  appId: "1:265210489111:web:a37876c1d64584f46fef52"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const linksRef = collection(db, "links");
+
+const loginBox = document.getElementById("login");
+const panel = document.getElementById("panel");
+const msg = document.getElementById("msg");
+const status = document.getElementById("status");
+const nameInput = document.getElementById("name");
+const urlInput = document.getElementById("url");
+const saveBtn = document.getElementById("saveBtn");
+const cancelBtn = document.getElementById("cancelBtn");
+const linksBox = document.getElementById("links");
+
+let editingId = null;
+let busy = false;
+
+function showStatus(text) {
+  status.textContent = text;
 }
-}
-function logout(){
-document.getElementById('panel').hidden=true;
-document.getElementById('login').hidden=false;
-document.getElementById('password').value='';
-}
-function addLink(){
-const name=document.getElementById('name').value.trim();
-const url=document.getElementById('url').value.trim();
-try{
-const parsed=new URL(url);
-if(!name||!['http:','https:'].includes(parsed.protocol))throw Error();
-links.push({name,url});
-showLinks();
-document.getElementById('name').value='';
-document.getElementById('url').value='';
-}catch(e){alert('লিংকের নাম ও সঠিক ঠিকানা দিন।')}
-}
-function showLinks(){
-const box=document.getElementById('links');
-box.replaceChildren();
-links.forEach((link,i)=>{
-const row=document.createElement('div');
-row.textContent=link.name+' — '+link.url;
-const del=document.createElement('button');
-del.textContent='মুছুন';
-del.onclick=()=>{links.splice(i,1);showLinks()};
-row.appendChild(del);
-box.appendChild(row);
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    msg.textContent = "ইমেইল ও পাসওয়ার্ড দিন।";
+    return;
+  }
+
+  msg.textContent = "লগইন হচ্ছে...";
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    msg.textContent = "";
+  } catch (error) {
+    msg.textContent = "লগইন হয়নি। ইমেইল, পাসওয়ার্ড ও Firebase Auth সেটিংস পরীক্ষা করুন।";
+  }
 });
+
+onAuthStateChanged(auth, async (user) => {
+  loginBox.hidden = !!user;
+  panel.hidden = !user;
+
+  if (user) {
+    await loadLinks();
+  } else {
+    linksBox.replaceChildren();
+  }
+});
+
+async function loadLinks() {
+  showStatus("লিংক লোড হচ্ছে...");
+  linksBox.replaceChildren();
+
+  try {
+    const snapshot = await getDocs(linksRef);
+
+    snapshot.forEach((item) => {
+      const data = item.data();
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const title = document.createElement("strong");
+      title.textContent = data.title || data.name || "নাম নেই";
+
+      const link = document.createElement("p");
+      link.textContent = data.url || "";
+
+      row.append(title, link);
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit";
+      editBtn.textContent = "সম্পাদনা";
+
+      editBtn.addEventListener("click", () => {
+        editingId = item.id;
+        nameInput.value = data.title || data.name || "";
+        urlInput.value = data.url || "";
+        saveBtn.textContent = "পরিবর্তন সেভ করুন";
+        cancelBtn.hidden = false;
+        window.scrollTo({top: 0, behavior: "smooth"});
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete";
+      deleteBtn.textContent = "মুছুন";
+
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm("এই লিংকটি মুছতে চান?")) return;
+
+        try {
+          await deleteDoc(doc(db, "links", item.id));
+          showStatus("লিংক মুছে ফেলা হয়েছে।");
+          await loadLinks();
+        } catch (error) {
+          showStatus("মুছতে পারেনি। Firestore Rules পরীক্ষা করুন।");
+        }
+      });
+
+      row.append(editBtn, deleteBtn);
+      linksBox.appendChild(row);
+    });
+
+    showStatus(snapshot.empty ? "এখনো কোনো লিংক নেই।" : "লিংক লোড হয়েছে।");
+  } catch (error) {
+    showStatus("লিংক লোড হয়নি। Firebase Firestore Rules পরীক্ষা করুন।");
+  }
 }
+
+saveBtn.addEventListener("click", async () => {
+  if (busy) return;
+
+  const title = nameInput.value.trim();
+  const url = urlInput.value.trim();
+
+  let parsed;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    showStatus("সঠিক ওয়েবসাইটের ঠিকানা দিন।");
+    return;
+  }
+
+  if (!title || !["http:", "https:"].includes(parsed.protocol)) {
+    showStatus("লিংকের নাম ও সঠিক HTTP/HTTPS ঠিকানা দিন।");
+    return;
+  }
+
+  busy = true;
+  saveBtn.disabled = true;
+  showStatus("সেভ হচ্ছে...");
+
+  try {
+    if (editingId) {
+      await updateDoc(doc(db, "links", editingId), {
+        title,
+        url,
+        updatedAt: serverTimestamp()
+      });
+      showStatus("লিংক পরিবর্তন সেভ হয়েছে।");
+    } else {
+      await addDoc(linksRef, {
+        title,
+        url,
+        createdAt: serverTimestamp()
+      });
+      showStatus("নতুন লিংক Firebase-এ সেভ হয়েছে।");
+    }
+
+    resetForm();
+    await loadLinks();
+  } catch (error) {
+    showStatus("সেভ হয়নি। Firebase Firestore Rules পরীক্ষা করুন।");
+  } finally {
+    busy = false;
+    saveBtn.disabled = false;
+  }
+});
+
+function resetForm() {
+  editingId = null;
+  nameInput.value = "";
+  urlInput.value = "";
+  saveBtn.textContent = "লিংক যোগ করুন";
+  cancelBtn.hidden = true;
+}
+
+cancelBtn.addEventListener("click", resetForm);
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await signOut(auth);
+  resetForm();
+});
 </script>
 </body>
 </html>
