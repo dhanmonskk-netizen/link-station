@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Station Admin</title>
+<style>
+body{font-family:Arial;background:#10172a;color:white;padding:20px}
+main{max-width:450px;margin:auto}
+input,button{box-sizing:border-box;width:100%;padding:12px;margin:7px 0;border:0;border-radius:8px}
+button{background:#477bff;color:white;font-weight:bold}
+.item{background:white;color:#111;padding:12px;margin:10px 0;border-radius:8px}
+</style>
+</head>
+<body>
+<main>
+<h2>My Link Station Admin</h2>
+<input id="name" placeholder="লিংকের নাম">
+<input id="url" placeholder="https://example.com">
+<button onclick="addLink()">লিংক যোগ করুন</button>
+<div id="links"></div>
+<p>এটি পরীক্ষামূলক প্যানেল। স্থায়ী অনলাইন সেভের জন্য Firebase লাগবে।</p>
+</main>
+<script>
+let links=[];
+function showLinks(){
+const box=document.getElementById('links');
+box.replaceChildren();
+links.forEach((link,i)=>{
+const item=document.createElement('div');
+item.className='item';
+const title=document.createElement('p');
+title.textContent=link.name+' — '+link.url;
+const del=document.createElement('button');
+del.textContent='মুছুন';
+del.onclick=()=>{links.splice(i,1);showLinks()};
+item.append(title,del);
+box.append(item);
+});
+}
+function addLink(){
+const name=document.getElementById('name').value.trim();
+const url=document.getElementById('url').value.trim();
+try{
+const parsed=new URL(url);
+if(!name||!['http:','https:'].includes(parsed.protocol))throw Error();
+links.push({name,url});
+document.getElementById('name').value='';
+document.getElementById('url').value='';
+showLinks();
+}catch(e){alert('লিংকের নাম ও সঠিক https:// ঠিকানা দিন।')}
+}
+</script>
+</body>
+  </html>
